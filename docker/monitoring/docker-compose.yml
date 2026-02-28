@@ -36,6 +36,8 @@ services:
       - ./tailscale/grafana.json:/config/ts.json:ro
     ports:
       - "${BIND_ADDR}:3000:3000"
+    cap_drop:
+      - ALL
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
@@ -45,11 +47,22 @@ services:
       - monitoring
       - plutonium
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "tailscale status --peers=false"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   ts-loki:
     image: tailscale/tailscale:latest
@@ -65,6 +78,8 @@ services:
       - ./tailscale/loki.json:/config/ts.json:ro
     ports:
       - "${BIND_ADDR}:3100:3100"
+    cap_drop:
+      - ALL
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
@@ -74,11 +89,22 @@ services:
       - monitoring
       - plutonium
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "tailscale status --peers=false"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   ts-prometheus:
     image: tailscale/tailscale:latest
@@ -94,6 +120,8 @@ services:
       - ./tailscale/prometheus.json:/config/ts.json:ro
     ports:
       - "${BIND_ADDR}:9090:9090"
+    cap_drop:
+      - ALL
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
@@ -103,11 +131,22 @@ services:
       - monitoring
       - plutonium
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "tailscale status --peers=false"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ============================================================
   # Core Monitoring Services
@@ -133,6 +172,8 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
     user: "472"
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
@@ -165,6 +206,8 @@ services:
       - loki_data:/loki
     command: -config.file=/etc/loki/config.yaml
     user: "10001"
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
@@ -202,6 +245,8 @@ services:
       - --web.enable-remote-write-receiver
       - --web.enable-lifecycle
     user: "65534"
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
@@ -243,6 +288,8 @@ services:
       - run
       - /etc/alloy/config.alloy
       - --server.http.listen-addr=0.0.0.0:12345
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
     networks:
@@ -287,9 +334,11 @@ services:
       - UP_UNIFI_DEFAULT_SAVE_SITES=true
       - UP_UNIFI_DEFAULT_SAVE_EVENTS=false
       - UP_UNIFI_DEFAULT_SAVE_ALARMS=false
+    user: "65534"
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
-    user: "65534"
     networks:
       - monitoring
     restart: unless-stopped
@@ -317,6 +366,8 @@ services:
       - TESLA_ADDR=${PW_HOST}
       - TESLA_PASSWORD=${PW_PASSWORD}
       - TESLA_EMAIL=${PW_EMAIL}
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
     networks:
@@ -345,6 +396,8 @@ services:
     environment:
       - WEATHERFLOW_STATION_ID=${TEMPEST_STATION_ID}
       - WEATHERFLOW_API_TOKEN=${TEMPEST_API_TOKEN}
+    cap_drop:
+      - ALL
     security_opt:
       - no-new-privileges:true
     networks:
