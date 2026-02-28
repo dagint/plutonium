@@ -1,0 +1,11 @@
+groups:
+  - name: homelab_alerts
+    rules:
+      - alert: HostHighCpuLoad
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: '{{ $labels.instance }} has high CPU load'
+          description: 'CPU usage is at {{ $value }}% on {{ $labels.instance }} for more than 5 minutes.'

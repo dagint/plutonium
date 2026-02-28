@@ -1,0 +1,57 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+
+  # Grafana internal metrics
+  - job_name: grafana
+    static_configs:
+      - targets: [ts-grafana:3000]
+
+  # UniFi Poller
+  - job_name: unpoller
+    scrape_interval: 30s
+    static_configs:
+      - targets: [unpoller:9130]
+
+  # Tesla Powerwall
+  - job_name: powerwall
+    scrape_interval: 30s
+    static_configs:
+      - targets: [powerwall-exporter:9961]
+
+  # WeatherFlow Tempest
+  # Relabeling passes station_id and API token as query params to the exporter
+  - job_name: weatherflow
+    scrape_interval: 30s
+    metrics_path: /scrape
+    static_configs:
+      - targets: ["157173"]
+        labels:
+          station_name: Biffco Weather
+          __param_token: "${TEMPEST_API_TOKEN}"
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_device_id
+      - target_label: __address__
+        replacement: tempest-exporter:6969
+
+  # WeatherFlow exporter self-health
+  - job_name: weatherflow_exporter
+    static_configs:
+      - targets: [tempest-exporter:6969]
+
+  # QNAP NAS (QNAP exporter running on NAS at 10.80.8.10)
+  - job_name: qnap
+    static_configs:
+      - targets: [10.80.8.10:9094]
+        labels:
+          instance: qnap-nas
+
+  # Remote hosts push metrics via Alloy remote_write — no scrape targets needed.
+  # See alloy/remote-agent.alloy for the agent config template.

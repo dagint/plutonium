@@ -1,0 +1,93 @@
+// ============================================================
+// Alloy remote agent template
+// Deploy on each remote Docker host that ships telemetry here.
+//
+// Before deploying, replace:
+//   HOSTNAME_HERE  → this host's unique identifier (e.g. "macmini", "homelab-01")
+//   LOKI_URL       → https://loki.your-tailnet.ts.net/loki/api/v1/push
+//   PROM_URL       → https://metrics.your-tailnet.ts.net/api/v1/write
+// ============================================================
+
+// ============================================================
+// Log Collection
+// ============================================================
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "container_logs" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    target_label = "host"
+    replacement  = "HOSTNAME_HERE"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+}
+
+loki.source.docker "container_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.container_logs.output
+  forward_to = [loki.write.central.receiver]
+}
+
+loki.write "central" {
+  endpoint {
+    url = "LOKI_URL"
+  }
+}
+
+// ============================================================
+// Host Metrics
+// ============================================================
+
+prometheus.exporter.unix "host" {
+  disable_collectors = ["ipvs", "btrfs", "infiniband"]
+}
+
+prometheus.scrape "host_metrics" {
+  targets         = prometheus.exporter.unix.host.targets
+  forward_to      = [prometheus.remote_write.central.receiver]
+  scrape_interval = "30s"
+
+  extra_labels = {
+    host = "HOSTNAME_HERE",
+  }
+}
+
+prometheus.exporter.cadvisor "docker" {
+  docker_host             = "unix:///var/run/docker.sock"
+  store_container_labels  = true
+}
+
+prometheus.scrape "cadvisor" {
+  targets         = prometheus.exporter.cadvisor.docker.targets
+  forward_to      = [prometheus.remote_write.central.receiver]
+  scrape_interval = "30s"
+
+  extra_labels = {
+    host = "HOSTNAME_HERE",
+  }
+}
+
+prometheus.remote_write "central" {
+  endpoint {
+    url = "PROM_URL"
+  }
+}

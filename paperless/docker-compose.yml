@@ -1,0 +1,163 @@
+name: paperless
+
+networks:
+  paperless_internal:
+    driver: bridge
+  plutonium:
+    external: true
+
+volumes:
+  paperless_data:
+  paperless_media:
+  paperless_consume:
+  paperless_db:
+  paperless_redis:
+  ts_paperless_state:
+
+services:
+
+  ts-paperless:
+    image: tailscale/tailscale:latest
+    container_name: ts-paperless
+    hostname: paperless
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts.json
+      - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
+    volumes:
+      - ts_paperless_state:/var/lib/tailscale
+      - ./tailscale/paperless.json:/config/ts.json:ro
+    ports:
+      - "${BIND_ADDR}:8000:8000"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - paperless_internal
+      - plutonium
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless
+    network_mode: service:ts-paperless
+    depends_on:
+      ts-paperless:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    environment:
+      # === Security — set before first run; PAPERLESS_SECRET_KEY must never change ===
+      - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY}
+      # === Admin ===
+      - PAPERLESS_ADMIN_USER=${PAPERLESS_ADMIN_USER}
+      - PAPERLESS_ADMIN_PASSWORD=${PAPERLESS_ADMIN_PASSWORD}
+      # === URLs ===
+      - PAPERLESS_URL=${PAPERLESS_URL}
+      - PAPERLESS_ALLOWED_HOSTS=${PAPERLESS_ALLOWED_HOSTS}
+      - PAPERLESS_CSRF_TRUSTED_ORIGINS=${PAPERLESS_URL}
+      # === Database ===
+      - PAPERLESS_DBENGINE=postgresql
+      - PAPERLESS_DBHOST=db
+      - PAPERLESS_DBNAME=paperless
+      - PAPERLESS_DBUSER=paperless
+      - PAPERLESS_DBPASS=${POSTGRES_PASSWORD}
+      # === Redis ===
+      - PAPERLESS_REDIS=redis://redis:6379
+      # === General ===
+      - PAPERLESS_TIME_ZONE=${TIMEZONE}
+      - PAPERLESS_OCR_LANGUAGE=eng
+      - PAPERLESS_TASK_WORKERS=2
+      - PAPERLESS_THREADS_PER_WORKER=1
+    volumes:
+      - paperless_data:/usr/src/paperless/data
+      - paperless_media:/usr/src/paperless/media
+      - paperless_consume:/usr/src/paperless/consume
+    user: "1000"
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "-S", "--max-time", "2", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  redis:
+    image: redis:7-alpine
+    container_name: paperless-redis
+    volumes:
+      - paperless_redis:/data
+    security_opt:
+      - no-new-privileges:true
+    user: "999"
+    networks:
+      - paperless_internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db:
+    image: postgres:16-alpine
+    container_name: paperless-db
+    environment:
+      - POSTGRES_DB=paperless
+      - POSTGRES_USER=paperless
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - paperless_db:/var/lib/postgresql/data
+    security_opt:
+      - no-new-privileges:true
+    user: "70"
+    networks:
+      - paperless_internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

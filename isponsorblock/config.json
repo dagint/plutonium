@@ -1,0 +1,6 @@
+{
+  "port": 8001,
+  "sponsorblock_api": "https://sponsor.ajay.app",
+  "categories": ["sponsor", "selfpromo", "interaction", "intro", "outro", "preview", "filler"],
+  "action_types": ["skip", "mute"]
+}

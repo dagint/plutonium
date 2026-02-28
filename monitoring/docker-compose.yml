@@ -1,0 +1,368 @@
+name: monitoring
+
+networks:
+  monitoring:
+    driver: bridge
+  plutonium:
+    external: true
+
+volumes:
+  grafana_data:
+  loki_data:
+  prometheus_data:
+  ts_grafana_state:
+  ts_loki_state:
+  ts_prometheus_state:
+
+services:
+
+  # ============================================================
+  # Tailscale Sidecars
+  # Each exposed service gets its own sidecar for a clean
+  # per-service Tailscale hostname with automatic HTTPS.
+  # ============================================================
+
+  ts-grafana:
+    image: tailscale/tailscale:latest
+    container_name: ts-grafana
+    hostname: grafana
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts.json
+      - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
+    volumes:
+      - ts_grafana_state:/var/lib/tailscale
+      - ./tailscale/grafana.json:/config/ts.json:ro
+    ports:
+      - "${BIND_ADDR}:3000:3000"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - monitoring
+      - plutonium
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ts-loki:
+    image: tailscale/tailscale:latest
+    container_name: ts-loki
+    hostname: loki
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts.json
+      - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
+    volumes:
+      - ts_loki_state:/var/lib/tailscale
+      - ./tailscale/loki.json:/config/ts.json:ro
+    ports:
+      - "${BIND_ADDR}:3100:3100"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - monitoring
+      - plutonium
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ts-prometheus:
+    image: tailscale/tailscale:latest
+    container_name: ts-prometheus
+    hostname: metrics
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts.json
+      - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
+    volumes:
+      - ts_prometheus_state:/var/lib/tailscale
+      - ./tailscale/prometheus.json:/config/ts.json:ro
+    ports:
+      - "${BIND_ADDR}:9090:9090"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - monitoring
+      - plutonium
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ============================================================
+  # Core Monitoring Services
+  # ============================================================
+
+  grafana:
+    image: grafana/grafana-oss:11.4.0
+    container_name: grafana
+    network_mode: service:ts-grafana
+    depends_on:
+      ts-grafana:
+        condition: service_started
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL}
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_UNIFIED_ALERTING_ENABLED=true
+      - GF_ALERTING_ENABLED=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+    user: "472"
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: loki
+    network_mode: service:ts-loki
+    depends_on:
+      ts-loki:
+        condition: service_started
+    volumes:
+      - ./loki/config.yaml:/etc/loki/config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/config.yaml
+    user: "10001"
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    container_name: prometheus
+    network_mode: service:ts-prometheus
+    depends_on:
+      ts-prometheus:
+        condition: service_started
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=90d
+      - --web.enable-remote-write-receiver
+      - --web.enable-lifecycle
+    user: "65534"
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ============================================================
+  # Alloy — Local Telemetry Agent
+  # On the monitoring + plutonium networks so it can push to
+  # ts-loki/ts-prometheus by Docker DNS name, and can reach
+  # containers from other compose projects via plutonium network.
+  # ============================================================
+
+  alloy:
+    image: grafana/alloy:v1.6.1
+    container_name: alloy
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro,rslave
+      - /var/log:/var/log:ro
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - monitoring
+      - plutonium
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:12345/-/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ============================================================
+  # Exporters — internal Prometheus scrape targets only
+  # ============================================================
+
+  unpoller:
+    image: ghcr.io/unpoller/unpoller:latest
+    container_name: unpoller
+    environment:
+      - UP_INFLUXDB_DISABLE=true
+      - UP_PROMETHEUS_DISABLE=false
+      - UP_PROMETHEUS_HTTP_LISTEN=0.0.0.0:9130
+      - UP_POLLER_DEBUG=false
+      - UP_POLLER_QUIET=false
+      - UP_UNIFI_DEFAULT_URL=${UNIFI_URL}
+      - UP_UNIFI_DEFAULT_USER=${UNIFI_USER}
+      - UP_UNIFI_DEFAULT_PASS=${UNIFI_PASS}
+      - UP_UNIFI_DEFAULT_VERIFY_SSL=false
+      - UP_UNIFI_DEFAULT_SAVE_DPI=true
+      - UP_UNIFI_DEFAULT_SAVE_SITES=true
+      - UP_UNIFI_DEFAULT_SAVE_EVENTS=false
+      - UP_UNIFI_DEFAULT_SAVE_ALARMS=false
+    security_opt:
+      - no-new-privileges:true
+    user: "65534"
+    networks:
+      - monitoring
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9130/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  powerwall-exporter:
+    image: damianmyerscough/tesla-powerwall-exporter:latest
+    container_name: powerwall-exporter
+    environment:
+      - TESLA_ADDR=${PW_HOST}
+      - TESLA_PASSWORD=${PW_PASSWORD}
+      - TESLA_EMAIL=${PW_EMAIL}
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - monitoring
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9961/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  tempest-exporter:
+    image: ghcr.io/tris/weatherflow_exporter:latest
+    container_name: tempest-exporter
+    environment:
+      - WEATHERFLOW_STATION_ID=${TEMPEST_STATION_ID}
+      - WEATHERFLOW_API_TOKEN=${TEMPEST_API_TOKEN}
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - monitoring
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:6969/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

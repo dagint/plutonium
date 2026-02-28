@@ -1,0 +1,87 @@
+name: n8n
+
+networks:
+  n8n_internal:
+    driver: bridge
+  plutonium:
+    external: true
+
+volumes:
+  n8n_data:
+  ts_n8n_state:
+
+services:
+
+  ts-n8n:
+    image: tailscale/tailscale:latest
+    container_name: ts-n8n
+    hostname: n8n
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts.json
+      - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
+    volumes:
+      - ts_n8n_state:/var/lib/tailscale
+      - ./tailscale/n8n.json:/config/ts.json:ro
+    ports:
+      - "${BIND_ADDR}:5678:5678"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - n8n_internal
+      - plutonium
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    network_mode: service:ts-n8n
+    depends_on:
+      ts-n8n:
+        condition: service_started
+    environment:
+      # === Security — set these before first run; N8N_ENCRYPTION_KEY must never change ===
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      # === Access ===
+      - N8N_HOST=${N8N_HOST}
+      - WEBHOOK_URL=${WEBHOOK_URL}
+      - N8N_SECURE_COOKIE=true
+      # === Admin account (created on first run) ===
+      - N8N_ADMIN_EMAIL=${N8N_ADMIN_EMAIL}
+      - N8N_ADMIN_PASSWORD=${N8N_ADMIN_PASSWORD}
+      # === General ===
+      - GENERIC_TIMEZONE=${TIMEZONE}
+      - N8N_LOG_LEVEL=warn
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=false
+    volumes:
+      - n8n_data:/home/node/.n8n
+    user: "1000"
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

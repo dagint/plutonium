@@ -1,0 +1,36 @@
+name: isponsorblock
+
+networks:
+  isponsorblock_internal:
+    driver: bridge
+
+services:
+
+  isponsorblock:
+    image: ghcr.io/dmunozv04/isponsorblocktv:latest
+    container_name: isponsorblock
+    ports:
+      - "${BIND_ADDR}:8001:8001"
+    volumes:
+      - ./config.json:/app/config.json:ro
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - isponsorblock_internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8001"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

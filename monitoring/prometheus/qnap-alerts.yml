@@ -1,0 +1,68 @@
+groups:
+  - name: qnap
+    rules:
+      - alert: QNAPHighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: qnap
+        annotations:
+          summary: "QNAP memory usage is high"
+          description: "QNAP {{ $labels.node }} memory usage is {{ $value | humanizePercentage }}"
+          dashboard: "QNAP NAS - qnapexporter"
+
+      - alert: QNAPHighDiskUsage
+        expr: (1 - (node_volume_avail_bytes / node_volume_size_bytes)) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: qnap
+        annotations:
+          summary: "QNAP volume usage is high"
+          description: "QNAP {{ $labels.node }} volume {{ $labels.volume }} usage is {{ $value | humanizePercentage }}"
+          dashboard: "QNAP NAS - qnapexporter"
+
+      - alert: QNAPHighTemperature
+        expr: node_hdtmp_C > 50 or node_cputmp_C > 80 or node_systmp_C > 60
+        for: 2m
+        labels:
+          severity: critical
+          service: qnap
+        annotations:
+          summary: "QNAP temperature is critically high"
+          description: "QNAP {{ $labels.node }} temperature is {{ $value }}°C"
+          dashboard: "QNAP NAS - qnapexporter"
+
+      - alert: QNAPHighLoadAverage
+        expr: node_load1 > 5 or node_load5 > 3 or node_load15 > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: qnap
+        annotations:
+          summary: "QNAP system load is high"
+          description: "QNAP {{ $labels.node }} load average is {{ $value }}"
+          dashboard: "QNAP NAS - qnapexporter"
+
+      - alert: QNAPHighNetworkErrors
+        expr: rate(node_network_receive_errs_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: qnap
+        annotations:
+          summary: "QNAP network errors detected"
+          description: "QNAP {{ $labels.node }} interface {{ $labels.device }} has {{ $value }} errors/sec"
+          dashboard: "QNAP NAS - qnapexporter"
+
+      - alert: QNAPProcessCountHigh
+        expr: node_procs_running > 200
+        for: 5m
+        labels:
+          severity: warning
+          service: qnap
+        annotations:
+          summary: "QNAP process count is high"
+          description: "QNAP {{ $labels.node }} has {{ $value }} running processes"
+          dashboard: "QNAP NAS - qnapexporter"
