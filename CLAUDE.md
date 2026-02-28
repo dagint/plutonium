@@ -17,7 +17,7 @@ The monitoring stack is being **rebuilt from scratch**. The legacy `monitoring/d
 | Secondary role | Application services (n8n, Paperless, iSponsorBlockTV) |
 | IP | TBD (will change — do not hardcode IPs in configs) |
 | Repo dir (on host) | `~/plutonium/` |
-| Per-service layout | `~/plutonium/<service>/docker-compose.yml` (one folder per service) |
+| Per-service layout | `~/plutonium/docker/<service>/docker-compose.yml` (one folder per service) |
 | Tailscale hostname | TBD — set in each service's `.env` |
 
 ---
@@ -256,7 +256,7 @@ Apply: `sudo systemctl restart docker`
 
 ## What Is Being Replaced (Legacy Stack)
 
-The existing `monitoring/docker-compose.yml` represents the OLD state. It is **being fully removed**:
+The existing `docker/monitoring/docker-compose.yml` represents the OLD state. It is **being fully removed**:
 
 | Old Service | Replacement | Reason |
 |-------------|-------------|--------|
@@ -289,45 +289,46 @@ docker system prune -af --volumes
 ```
 ~/plutonium/
 ├── CLAUDE.md
-├── monitoring/
-│   ├── docker-compose.yml
-│   ├── .env                          # secrets — never commit
-│   ├── .env.example
-│   ├── .gitignore
-│   ├── grafana/
-│   │   ├── provisioning/
-│   │   │   ├── datasources/datasources.yaml
-│   │   │   └── dashboards/
-│   │   │       ├── dashboards.yaml
-│   │   │       └── json/             # dashboard JSON files
-│   │   └── grafana.ini
-│   ├── loki/config.yaml
-│   ├── prometheus/prometheus.yml     # or mimir/mimir.yaml
-│   ├── alloy/
-│   │   ├── config.alloy              # local collector for this host
-│   │   └── remote-agent.alloy        # template for remote hosts
-│   ├── tailscale/
-│   │   ├── grafana.json
-│   │   ├── loki.json
-│   │   └── prometheus.json
-│   ├── unpoller/up.conf
-│   └── scripts/
-│       ├── nuke.sh
-│       ├── start.sh
-│       ├── stop.sh
-│       ├── backup.sh
-│       └── health-check.sh
-├── n8n/
-│   ├── docker-compose.yml
-│   ├── .env.example
-│   └── .gitignore
-├── paperless/
-│   ├── docker-compose.yml
-│   ├── .env.example
-│   └── .gitignore
-└── isponsorblock/
-    ├── docker-compose.yml
-    └── config.json
+└── docker/
+    ├── monitoring/
+    │   ├── docker-compose.yml
+    │   ├── .env                          # secrets — never commit
+    │   ├── .env.example
+    │   ├── .gitignore
+    │   ├── grafana/
+    │   │   ├── provisioning/
+    │   │   │   ├── datasources/datasources.yaml
+    │   │   │   └── dashboards/
+    │   │   │       ├── dashboards.yaml
+    │   │   │       └── json/             # dashboard JSON files
+    │   │   └── grafana.ini
+    │   ├── loki/config.yaml
+    │   ├── prometheus/prometheus.yml     # or mimir/mimir.yaml
+    │   ├── alloy/
+    │   │   ├── config.alloy              # local collector for this host
+    │   │   └── remote-agent.alloy        # template for remote hosts
+    │   ├── tailscale/
+    │   │   ├── grafana.json
+    │   │   ├── loki.json
+    │   │   └── prometheus.json
+    │   ├── unpoller/up.conf
+    │   └── scripts/
+    │       ├── nuke.sh
+    │       ├── start.sh
+    │       ├── stop.sh
+    │       ├── backup.sh
+    │       └── health-check.sh
+    ├── n8n/
+    │   ├── docker-compose.yml
+    │   ├── .env.example
+    │   └── .gitignore
+    ├── paperless/
+    │   ├── docker-compose.yml
+    │   ├── .env.example
+    │   └── .gitignore
+    └── isponsorblock/
+        ├── docker-compose.yml
+        └── config.json
 ```
 
 ---
@@ -455,18 +456,18 @@ docker network create plutonium
 
 ```bash
 git clone <repo> ~/plutonium
-cd ~/plutonium/monitoring && cp .env.example .env   # fill in all values
-cd ~/plutonium/n8n        && cp .env.example .env
-cd ~/plutonium/paperless  && cp .env.example .env
+cd ~/plutonium/docker/monitoring && cp .env.example .env   # fill in all values
+cd ~/plutonium/docker/n8n        && cp .env.example .env
+cd ~/plutonium/docker/paperless  && cp .env.example .env
 ```
 
 ### Step 3: Deploy
 
 ```bash
-cd ~/plutonium/monitoring    && docker compose up -d
-cd ~/plutonium/n8n           && docker compose up -d
-cd ~/plutonium/paperless     && docker compose up -d
-cd ~/plutonium/isponsorblock && docker compose up -d
+cd ~/plutonium/docker/monitoring    && docker compose up -d
+cd ~/plutonium/docker/n8n           && docker compose up -d
+cd ~/plutonium/docker/paperless     && docker compose up -d
+cd ~/plutonium/docker/isponsorblock && docker compose up -d
 ```
 
 ### Step 4: Validate
@@ -488,9 +489,9 @@ Each application service gets **its own subfolder and its own `docker-compose.ym
 
 | Service | Purpose | Port | Access | Dir |
 |---------|---------|------|--------|-----|
-| n8n | Workflow automation | 5678 | Tailscale + LAN | `n8n/` |
-| Paperless-ngx | Document management | 8000 | Tailscale + LAN | `paperless/` |
-| iSponsorBlockTV | SponsorBlock proxy for TV devices | 8001 | LAN only | `isponsorblock/` |
+| n8n | Workflow automation | 5678 | Tailscale + LAN | `docker/n8n/` |
+| Paperless-ngx | Document management | 8000 | Tailscale + LAN | `docker/paperless/` |
+| iSponsorBlockTV | SponsorBlock proxy for TV devices | 8001 | LAN only | `docker/isponsorblock/` |
 
 ### n8n
 
@@ -521,7 +522,7 @@ Each application service gets **its own subfolder and its own `docker-compose.ym
 
 ### unpoller
 
-UniFi Poller is **part of the monitoring compose project**, not a standalone service. It is a Prometheus scrape target, not a user-facing application. It lives in `~/plutonium/monitoring/`.
+UniFi Poller is **part of the monitoring compose project**, not a standalone service. It is a Prometheus scrape target, not a user-facing application. It lives in `~/plutonium/docker/monitoring/`.
 
 ---
 
@@ -529,7 +530,7 @@ UniFi Poller is **part of the monitoring compose project**, not a standalone ser
 
 Each remote Docker host runs a lightweight Alloy agent shipping data here via Tailscale.
 
-Use `monitoring/alloy/remote-agent.alloy` as the template. Per-host substitutions:
+Use `docker/monitoring/alloy/remote-agent.alloy` as the template. Per-host substitutions:
 - `HOST_NAME_HERE` → unique identifier for that host
 - Loki push URL: `https://loki.<tailnet>.ts.net/loki/api/v1/push`
 - Prometheus remote_write URL: `https://metrics.<tailnet>.ts.net/api/v1/write`
@@ -614,7 +615,7 @@ restic -r b2:<bucket>:<path> forget \
 
 Schedule via cron:
 ```
-0 3 * * * /home/<user>/plutonium/monitoring/scripts/backup.sh >> /var/log/backup.log 2>&1
+0 3 * * * /home/<user>/plutonium/docker/monitoring/scripts/backup.sh >> /var/log/backup.log 2>&1
 ```
 
 ### Restore Order
@@ -644,7 +645,7 @@ After initial deployment, replace `:latest` with pinned versions. Record them he
 ### Upgrading a Service
 
 ```bash
-cd ~/plutonium/<service>
+cd ~/plutonium/docker/<service>
 docker compose pull
 docker compose up -d
 docker compose ps   # confirm all healthy before moving on
@@ -652,7 +653,7 @@ docker compose ps   # confirm all healthy before moving on
 
 ### Log Retention
 
-- Loki: 30 days — `monitoring/loki/config.yaml` → `limits_config.retention_period`
+- Loki: 30 days — `docker/monitoring/loki/config.yaml` → `limits_config.retention_period`
 - Prometheus: 90 days — `--storage.tsdb.retention.time` in compose command
 - Mimir: `mimir.yaml` → `blocks_storage` + compactor settings
 
