@@ -1,0 +1,52 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Deploy via SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          echo "$SSH_PRIVATE_KEY" > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+
+          ssh -i /tmp/deploy_key \
+            -o StrictHostKeyChecking=accept-new \
+            -o ConnectTimeout=30 \
+            "$SSH_USER@$SSH_HOST" << 'ENDSSH'
+          set -euo pipefail
+
+          cd ~/plutonium
+          git pull origin main
+
+          for svc in monitoring n8n paperless isponsorblock; do
+            dir="$HOME/plutonium/docker/$svc"
+            if [[ -f "$dir/docker-compose.yml" ]]; then
+              echo "==> Deploying $svc"
+              cd "$dir"
+              docker compose pull --quiet
+              docker compose up -d --remove-orphans
+            fi
+          done
+
+          echo "==> Deploy complete"
+          ENDSSH
+
+          rm -f /tmp/deploy_key
