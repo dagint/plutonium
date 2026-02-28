@@ -36,13 +36,15 @@ jobs:
           cd ~/plutonium
           git pull origin main
 
+          ENV_FILE="$HOME/plutonium/.env"
+
           for svc in monitoring n8n paperless isponsorblock; do
             dir="$HOME/plutonium/docker/$svc"
             if [[ -f "$dir/docker-compose.yml" ]]; then
               echo "==> Deploying $svc"
               cd "$dir"
-              docker compose pull --quiet
-              docker compose up -d --remove-orphans
+              docker compose --env-file "$ENV_FILE" pull --quiet
+              docker compose --env-file "$ENV_FILE" up -d --remove-orphans
             fi
           done
 
