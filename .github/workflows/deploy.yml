@@ -35,6 +35,7 @@ jobs:
 
           cd ~/plutonium
           git pull origin main
+          bash scripts/generate-env.sh
 
           for svc in monitoring n8n paperless isponsorblock; do
             dir="$HOME/plutonium/docker/$svc"
