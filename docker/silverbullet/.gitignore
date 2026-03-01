@@ -1,0 +1,17 @@
+# Secrets
+.env
+*.key
+*.pem
+*.p12
+
+# Tailscale state
+**/*.state
+tailscale/state/
+
+# Runtime data
+data/
+space/
+
+# OS noise
+.DS_Store
+Thumbs.db
