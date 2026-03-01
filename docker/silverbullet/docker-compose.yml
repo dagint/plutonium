@@ -1,0 +1,92 @@
+name: silverbullet
+
+networks:
+  silverbullet_internal:
+    driver: bridge
+  plutonium:
+    external: true
+
+volumes:
+  sb_space:
+  ts_silverbullet_state:
+
+services:
+
+  ts-silverbullet:
+    image: tailscale/tailscale:latest
+    container_name: ts-silverbullet
+    hostname: silverbullet
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/ts.json
+      - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
+    volumes:
+      - ts_silverbullet_state:/var/lib/tailscale
+      - ./tailscale/silverbullet.json:/config/ts.json:ro
+    ports:
+      - "${BIND_ADDR}:3002:3000"
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - silverbullet_internal
+      - plutonium
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "tailscale status --peers=false"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  silverbullet:
+    image: ghcr.io/silverbulletmd/silverbullet:latest
+    container_name: silverbullet
+    network_mode: service:ts-silverbullet
+    depends_on:
+      ts-silverbullet:
+        condition: service_started
+    environment:
+      # === Authentication — change password before first run ===
+      - SB_USER=${SB_USER}
+      # === User/group for volume ownership ===
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - sb_space:/space
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
