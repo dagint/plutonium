@@ -7,7 +7,6 @@ networks:
     external: true
 
 volumes:
-  sb_space:
   ts_silverbullet_state:
 
 services:
@@ -17,10 +16,10 @@ services:
     container_name: ts-silverbullet
     hostname: silverbullet
     environment:
-      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_AUTHKEY=${TS_AUTHKEY_SILVERBULLET}
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_SERVE_CONFIG=/config/ts.json
-      - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
+      - TS_EXTRA_ARGS=--advertise-tags=tag:homelab-silverbullet
     volumes:
       - ts_silverbullet_state:/var/lib/tailscale
       - ./tailscale/silverbullet.json:/config/ts.json:ro
@@ -68,7 +67,7 @@ services:
       - PUID=1000
       - PGID=1000
     volumes:
-      - sb_space:/space
+      - ./space:/space
     cap_drop:
       - ALL
     security_opt:

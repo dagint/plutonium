@@ -27,7 +27,7 @@ services:
     container_name: ts-grafana
     hostname: grafana
     environment:
-      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_AUTHKEY=${TS_AUTHKEY_MONITORING}
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_SERVE_CONFIG=/config/ts.json
       - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
@@ -69,7 +69,7 @@ services:
     container_name: ts-loki
     hostname: loki
     environment:
-      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_AUTHKEY=${TS_AUTHKEY_MONITORING}
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_SERVE_CONFIG=/config/ts.json
       - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
@@ -111,7 +111,7 @@ services:
     container_name: ts-prometheus
     hostname: metrics
     environment:
-      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_AUTHKEY=${TS_AUTHKEY_MONITORING}
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_SERVE_CONFIG=/config/ts.json
       - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
