@@ -19,11 +19,9 @@ services:
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY_N8N}
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_SERVE_CONFIG=/config/ts.json
       - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
     volumes:
       - ts_n8n_state:/var/lib/tailscale
-      - ./tailscale/n8n.json:/config/ts.json:ro
     ports:
       - "${BIND_ADDR}:5678:5678"
     cap_drop:

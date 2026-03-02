@@ -23,11 +23,9 @@ services:
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY_PAPERLESS}
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_SERVE_CONFIG=/config/ts.json
       - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
     volumes:
       - ts_paperless_state:/var/lib/tailscale
-      - ./tailscale/paperless.json:/config/ts.json:ro
     ports:
       - "${BIND_ADDR}:8000:8000"
     cap_drop:
