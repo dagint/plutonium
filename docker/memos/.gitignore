@@ -8,9 +8,6 @@
 **/*.state
 tailscale/state/
 
-# Runtime data
-data/
-
 # OS noise
 .DS_Store
 Thumbs.db
