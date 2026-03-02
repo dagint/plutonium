@@ -8,6 +8,7 @@ networks:
 
 volumes:
   ts_memos_state:
+  memos_data:
 
 services:
 
@@ -57,7 +58,7 @@ services:
       ts-memos:
         condition: service_started
     volumes:
-      - ./data:/var/opt/memos
+      - memos_data:/var/opt/memos
     cap_drop:
       - ALL
     cap_add:
