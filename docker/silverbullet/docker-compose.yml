@@ -63,13 +63,13 @@ services:
     environment:
       # === Authentication — change password before first run ===
       - SB_USER=${SB_USER}
-      # === User/group for volume ownership ===
-      - PUID=1000
-      - PGID=1000
     volumes:
       - ./space:/space
     cap_drop:
       - ALL
+    cap_add:
+      - SETGID
+      - SETUID
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
