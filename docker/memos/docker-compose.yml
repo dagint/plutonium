@@ -1,0 +1,81 @@
+name: memos
+
+networks:
+  memos_internal:
+    driver: bridge
+  plutonium:
+    external: true
+
+volumes:
+  ts_memos_state:
+
+services:
+
+  ts-memos:
+    image: tailscale/tailscale:latest
+    container_name: ts-memos
+    hostname: memos
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY_MEMOS}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_EXTRA_ARGS=--advertise-tags=tag:homelab-memos
+    volumes:
+      - ts_memos_state:/var/lib/tailscale
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - memos_internal
+      - plutonium
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+          cpus: "0.25"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "tailscale status --peers=false"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  memos:
+    image: neosmemo/memos:stable
+    container_name: memos
+    network_mode: service:ts-memos
+    depends_on:
+      ts-memos:
+        condition: service_started
+    volumes:
+      - ./data:/var/opt/memos
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+          cpus: "0.5"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:5230 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
