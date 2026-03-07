@@ -23,7 +23,7 @@ services:
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY_PAPERLESS}
       - TS_STATE_DIR=/var/lib/tailscale
-      - TS_EXTRA_ARGS=--advertise-tags=tag:monitoring
+      - TS_EXTRA_ARGS=--advertise-tags=tag:homelab-paperless
     volumes:
       - ts_paperless_state:/var/lib/tailscale
     ports:
@@ -90,15 +90,23 @@ services:
       - PAPERLESS_OCR_LANGUAGE=eng
       - PAPERLESS_TASK_WORKERS=2
       - PAPERLESS_THREADS_PER_WORKER=1
+      # s6-overlay requires starting as root; these vars drop privileges internally
+      - USERMAP_UID=1000
+      - USERMAP_GID=1000
     volumes:
       - paperless_data:/usr/src/paperless/data
       - paperless_media:/usr/src/paperless/media
       - paperless_consume:/usr/src/paperless/consume
-    user: "1000"
     cap_drop:
       - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - FOWNER
+      - CHOWN
+      - DAC_OVERRIDE
     security_opt:
-      - no-new-privileges:true
+      - no-new-privileges:false
     restart: unless-stopped
     deploy:
       resources:
